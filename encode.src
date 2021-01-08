@@ -1,0 +1,59 @@
+encode_version = "0.2"
+
+// .get_content no longer allowed in Encode/Decode
+// key = get_shell.host_computer.File("/server/.ssh/id_key").get_content //can be located anywhere, need to be a 32 character key
+key = "IAbBpjLQq8UZTY6xAHdPE4YLWeI3wZqL" // change this unless you are a skid
+
+pad32 = function(text)
+	pad = char(32)
+	i = 32 - text.len
+	return(text + pad*i)
+end function
+
+fill = function(text, block)
+	a = []
+	sStart = ((block-1)*32)
+	sEnd = block*32
+	text = text[sStart:sEnd]
+	if text.len < 32 then
+		text = pad32(text)
+	end if
+	for i in text.indexes
+		a.push(text[i].code)
+	end for
+	return a
+end function
+
+hex = function(int)
+  lookup = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
+  x = int/16
+  y = int%16
+  return(lookup[x]+lookup[y])
+end function
+
+Encode = function(text)
+	numBlocks = ceil(text.len/32)
+
+	blocks = []
+	for i in range(1, numBlocks)
+		blocks.push(fill(text, i))
+	end for
+
+	keyblock = []
+	keyblock = fill(key, 1)
+
+	result = []
+	for i in blocks.indexes
+		for j in keyblock.indexes
+			result.push(bitwise("^", blocks[i][j], keyblock[j]))
+		end for
+	end for
+
+  ciphertext = ""
+  for i in result.indexes
+    ciphertext = ciphertext + hex(result[i])
+  end for
+
+	return ciphertext
+
+end function
