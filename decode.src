@@ -1,0 +1,68 @@
+decode_version = "0.2"
+
+// .get_content no longer allowed in Encode/Decode
+// key = get_shell.host_computer.File("/server/.ssh/id_key").get_content //can be located anywhere, need to be a 32 character key
+key = "IAbBpjLQq8UZTY6xAHdPE4YLWeI3wZqL" // change this unless you are a skid
+
+fill = function(text, block)
+	a = []
+	sStart = ((block-1)*32)
+	sEnd = block*32
+	text = text[sStart:sEnd]
+	if text.len < 32 then
+		text = pad32(text)
+	end if
+	for i in text.indexes
+		a.push(text[i].code)
+	end for
+	return a
+end function
+
+hSplit = function(text, block)
+	a = []
+	sStart = ((block-1)*64)
+	sEnd = block*64
+	text = text[sStart:sEnd]
+	for i in text.indexes
+		if i%2 == 0 then a.push(text[i]+text[i+1])
+	end for
+	for i in a.indexes
+		a[i] = hex_to_int(a[i])
+	end for
+	return a
+end function
+
+hex_to_int = function(hex)
+	lookup = {"0":0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"a":10,"b":11,"c":12,"d":13,"e":14,"f":15}
+	x = hex[0]
+	y = hex[1]
+	result = (lookup[x]*16)+lookup[y]
+	return(result)
+end function
+
+Decode = function(cipher)
+	if cipher.len%64 != 0 then exit("Error: cipher length incorrect")
+	numBlocks = cipher.len/64
+
+	blocks = []
+	for i in range(1, numBlocks)
+		blocks.push(hSplit(cipher, i))
+	end for
+
+	keyblock = []
+	keyblock = fill(key, 1)
+
+	result = []
+	for i in blocks.indexes
+		for j in keyblock.indexes
+			result.push(bitwise("^", blocks[i][j], keyblock[j]))
+		end for
+	end for
+
+	plaintext = ""
+	for i in result.indexes
+		plaintext = plaintext + char(result[i])
+	end for
+	return plaintext.trim
+
+end function
