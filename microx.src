@@ -1,4 +1,4 @@
-microx_version = "2.5" // updated for grey hack v0.7.3552 Nightly Alpha
+microx_version = "2.5" // updated for grey hack v0.7.3574 Nightly Alpha
 
 getParam = function(paramType)
 	rnp=0
