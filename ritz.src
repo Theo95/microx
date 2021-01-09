@@ -1,0 +1,54 @@
+// ritz
+loadLibrary = function(libFileName, search)
+	paths=[""]
+	if search then paths = [current_path, "/lib", "/bin", "/usr/bin"]
+	for p in paths
+		lib = include_lib(p + "/" + libFileName)
+		if lib then return lib
+	end for
+	error("Could not find requested library: " + libFileName)
+	return false
+end function
+
+padSpaces = function(s, l, p=" ")
+	if typeof(s) == "number" then s = s + ""
+	if s.len >= l then return s
+	padString = ""
+	c = l - s.len
+	while c > 0
+		padString = padString + p
+		c = c - 1
+	end while
+	return (s+padString)
+end function
+
+padSpacesRight = function(s, l, p=" ")
+	if typeof(s) == "number" then s = s + ""
+	if s.len >= l then return s
+	padString = ""
+	c = l - s.len
+	while c > 0
+		padString = p + padString
+		c = c - 1
+	end while
+	return (padString+s)
+end function
+
+crackPasswordFile = function(filePtr)
+	crypto = loadLibrary("crypto.so", true)
+	lines = filePtr.get_content.split("\n")
+	for line in lines
+		results = []
+		line = split(line.trim, ":")
+		line2 = split(line[1], " ")
+		if line2[0].len == 32 then
+			print("Cracking MD5 hash for user: <b><i>" + line[0] + "</b></i> in file: <b><i>" + filePtr.path + "</b></i>")
+			pw = crypto.decipher(line[1])
+			get_shell().host_computer.touch(home_dir, "crackedPasswords.txt")
+			f = get_shell().host_computer.File(home_dir+"/crackedPasswords.txt")
+			f.set_content(f.get_content + "\n" + padSpaces(line[0]+"@"+pw, 30) + " " + line2[1] + ": " + line[2])
+		end if
+	end for
+end function
+
+crackPasswordFile(host_computer.File(params[0]))

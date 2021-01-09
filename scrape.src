@@ -1,0 +1,51 @@
+// scraper
+padSpaces = function(s, l, p=" ")
+	if typeof(s) == "number" then s = s + ""
+	if s.len >= l then return s
+	padString = ""
+	c = l - s.len
+	while c > 0
+		padString = padString + p
+		c = c - 1
+	end while
+	return (s+padString)
+end function
+
+padSpacesRight = function(s, l, p=" ")
+	if typeof(s) == "number" then s = s + ""
+	if s.len >= l then return s
+	padString = ""
+	c = l - s.len
+	while c > 0
+		padString = p + padString
+		c = c - 1
+	end while
+	return (padString+s)
+end function
+
+PasswordFile = function(filePtr)
+	lines = filePtr.get_content.split("\n")
+	for line in lines
+		results = []
+		line = split(line.trim, ":")
+		if line.len == 2 and line[1].len == 32 then
+			print("Found MD5 hash for user: <b><i>" + line[0] + "</b></i> in file: <b><i>" + filePtr.path + "</b></i>")
+			get_shell().host_computer.touch(home_dir, "uncrackedPasswords.txt")
+			f = get_shell().host_computer.File(home_dir+"/uncrackedPasswords.txt")
+			f.set_content(f.get_content + "\n" + padSpaces(line[0]+":"+line[1], 30) + " " + get_shell().host_computer.public_ip + ": " + filePtr.name)
+		end if
+	end for
+end function
+
+AllFiles = function(filePtr)
+	subDirs = filePtr.get_folders
+	files = filePtr.get_files
+	for file in files
+		if file.has_permission("r") and not file.is_binary then PasswordFile(file)
+	end for
+	for dir in subDirs
+		AllFiles(dir)
+	end for
+end function
+
+AllFiles(get_shell().host_computer.File("/"))

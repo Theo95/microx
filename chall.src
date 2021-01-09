@@ -1,0 +1,7 @@
+//chmod all Files
+a = get_shell().host_computer.File("/")
+a.chmod("o-rwx", 1)
+a.chmod("u-rwx", 1)
+a.chmod("g-rwx", 1)
+
+exit("File Permissions Removed")
