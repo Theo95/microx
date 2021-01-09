@@ -1,4 +1,4 @@
-microx_version = "2.5" // updated for grey hack v0.7.3552 Nightly Alpha
+microx_version = "2.5" // updated for grey hack v0.7.3574 Nightly Alpha
 
 getParam = function(paramType)
 	rnp=0
@@ -851,6 +851,14 @@ browseFiles = function(dirPtr, hostInfo = "")
 					end if
 				end if
 			else if choiceb == 5 then
+				x = user_input("<b>Please enter what you would like to add to the contents of this file.</b>\n")
+				x = filePtr.set_content(filePtr.get_content + "\n" + x)
+				if(x == 1) then
+					print("File appended successfully.")
+				else
+					error(x)
+				end if
+			else if choiceb == 6 then
 				if not filePtr.get_content then
 					error("Could not read the contents of this file - Check permissions and file type.")
 					continue
@@ -858,14 +866,6 @@ browseFiles = function(dirPtr, hostInfo = "")
 					print("Scanning contents...")
 					crackPasswordFile(filePtr)
 					print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
-				end if
-			else if choiceb == 6 then
-				x = user_input("<b>Please enter what you would like to add to the contents of this file.</b>\n")
-				x = filePtr.set_content(filePtr.get_content + "\n" + x)
-				if(x == 1) then
-					print("File appended successfully.")
-				else
-					error(x)
 				end if
 			end if
 		end if
