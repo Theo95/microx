@@ -1,20 +1,14 @@
-microx_version = "2.5" // updated for grey hack v0.7.3574 Nightly Alpha
-
-getParam = function(paramType)
-	rnp=0
-	for param in params
-		if rnp then return param
-		if param == (paramType) then rnp=1
-	end for
-	return false
-end function
+microx_version = "3.0" // updated for grey hack v0.7.3574 Nightly Alpha
 
 loadLibrary = function(libFileName, search)
 	paths=[""]
 	if search then paths = [current_path, "/lib", "/bin", "/usr/bin"]
 	for p in paths
 		lib = include_lib(p + "/" + libFileName)
-		if lib then return lib
+		if lib then
+			info("Including Library: " + p + "/" + libFileName)
+			return lib
+		end if
 	end for
 	error("Could not find requested library: " + libFileName)
 	return false
@@ -39,14 +33,12 @@ info = function(str)
 	if isAParam("-v") then print("<I>  Info: " + str + "</I>")
 end function
 
-getRouter = function(IPAddress)
-	// Load the router object.
+getRouter = function(IPAddress) // Load the router object.
 	router = get_router(IPAddress)
 	if not router then
 		error("Could not find a router at the given address: " + IPAddress)
 		return null
 	end if
-
 	return router
 end function
 
@@ -453,15 +445,25 @@ chooseMetaLib = function(metaLibs)
 	while 1
 		print("\n<b>Found the following entry point(s): </b>")
 		c = 0
-		for metaLib in metaLibs
-			c = c + 1
-			if metaLib.port_number == -1 then
-				print("<b>[" + c + "] " + metaLib.metaLib.lib_name + "</b> (Version: " + metaLib.metaLib.version + ") --> " + metaLib.local_ip)
-			else
-				print("<b>[" + c + "] " + metaLib.metaLib.lib_name + "</b> (Version: " + metaLib.metaLib.version + ") --> " + metaLib.local_ip + ":" + metaLib.port_number)
-			end if
-			print("     <i>" + loadExploits(metaLib.metaLib).len + " exploits on file.</i>")
-		end for
+		info("localCheck = " + globals.localCheck)
+		if globals.localCheck == false then
+			for metaLib in metaLibs
+				c = c + 1
+				if metaLib.port_number == -1 then
+					print("<b>[" + c + "] " + metaLib.metaLib.lib_name + "</b> (Version: " + metaLib.metaLib.version + ") --> " + metaLib.local_ip)
+				else
+					print("<b>[" + c + "] " + metaLib.metaLib.lib_name + "</b> (Version: " + metaLib.metaLib.version + ") --> " + metaLib.local_ip + ":" + metaLib.port_number)
+				end if
+				print("     <i>" + loadExploits(metaLib.metaLib).len + " exploits on file.</i>")
+			end for
+		else
+			for metaLib in metaLibs
+				c = c + 1
+				print("<b>[" + c + "] " + metaLib.metaLib.lib_name + "</b> (Version: " + metaLib.metaLib.version + ")")
+				print("     <i>" + loadExploits(metaLib.metaLib).len + " exploits on file.</i>")
+			end for
+		end if
+
 		print("<b>[S]</b> Scan an entry point for exploits.")
 		print("<b>[A]</b> Scan ALL entry points for new exploits.")
 		print("<b>[X]</b> None.  Exit now.")
@@ -674,6 +676,16 @@ messWithUsers = function(computer)
 	end if
 end function
 
+quickDecipher = function(cipher)
+	if cipher.len != 32 then
+		error("Hash must be 32 characters long")
+		return
+	end if
+	crypto = loadLibrary("crypto.so", true)
+	plaintext = crypto.decipher(cipher)
+	print("Password: " + plaintext)
+end function
+
 crackPasswordFile = function(filePtr, hostInfo="")
 	crypto = loadLibrary("crypto.so", true)
 	lines = filePtr.get_content.split("\n")
@@ -690,6 +702,53 @@ crackPasswordFile = function(filePtr, hostInfo="")
 				f.set_content(f.get_content + "\n" + padSpaces(line[0]+"@"+pw, 30) + " " + hostInfo + ": " + filePtr.name)
 			end if
 		end if
+	end for
+end function
+
+crackLocalFile = function(filePtr)
+	crypto = loadLibrary("crypto.so", true)
+	lines = filePtr.get_content.split("\n")
+	for line in lines
+		results = []
+		line = split(line.trim, ":")
+		if line.len < 2 then
+			info("Line <b>" + line + "</b> is not in the correct format or does not contain a password")
+			continue
+		end if
+		line2 = split(line[1], " ")
+		if line2[0].len == 32 then
+			print("Cracking MD5 hash for user: <b><i>" + line[0] + "</b></i> in file: <b><i>" + filePtr.path + "</b></i>")
+			pw = crypto.decipher(line2[0])
+			print(pw)
+			get_shell().host_computer.touch(home_dir, "crackedPasswords.txt")
+			f = get_shell().host_computer.File(home_dir+"/crackedPasswords.txt")
+			f.set_content(f.get_content + "\n" + padSpaces(line[0]+"@"+pw, 30) + " " + line2[1] + ": " + line[2])
+		end if
+	end for
+end function
+
+scrapeFile = function(filePtr)
+	lines = filePtr.get_content.split("\n")
+	for line in lines
+		results = []
+		line = split(line.trim, ":")
+		if line.len == 2 and line[1].len == 32 then
+			print("Found MD5 hash for user: <b><i>" + line[0] + "</b></i> in file: <b><i>" + filePtr.path + "</b></i>")
+			get_shell().host_computer.touch(home_dir, "uncrackedPasswords.txt")
+			f = get_shell().host_computer.File(home_dir+"/uncrackedPasswords.txt")
+			f.set_content(f.get_content + "\n" + padSpaces(line[0]+":"+line[1], 30) + " " + get_shell().host_computer.public_ip + ": " + filePtr.name)
+		end if
+	end for
+end function
+
+scrapeAllFiles = function(filePtr)
+	subDirs = filePtr.get_folders
+	files = filePtr.get_files
+	for file in files
+		if file.has_permission("r") and not file.is_binary then scrapeFile(file)
+	end for
+	for dir in subDirs
+		AllFiles(dir)
 	end for
 end function
 
@@ -872,140 +931,487 @@ browseFiles = function(dirPtr, hostInfo = "")
 	end while
 end function
 
-ipAddr = null
+libCheck = function()
+	libs = localLibs()
+	for lib in libs
+		print(padSpaces(lib.file_path+"/"+lib.metaLib.lib_name, 25) + " v" + lib.metaLib.version)
+	end for
+end function
 
-for param in params
-	if is_valid_ip(nslookup(param)) then
-		ipAddr = nslookup(param)
-	else if is_valid_ip(param) then
-		ipAddr = param
-	end if
-	if ipAddr then break
-end for
-
-
-
-print("<color=#FF1111>  *      `           `             ) </color>")
-print("<color=#DD4433> (  `       `               `     ( /( </color>")
-print("<color=#BB8855> )\))(     (       `  (   `       )\())</color>")
-print("<color=#99CC77>((_)()\    )\    (    )(     (   ((_)\ </color>")
-print("<color=#77EE99>(_()((_)  ((_)   )\   (()\    )\  __((_)</color>")
-print("<color=#5588BB><b>|  \/  |</b>  (_)  ((_)   ((_)  ((_)  <b>\ \/ /</b></color>")
-print("<color=#3344DD><b>| |\/| |  | | / _|  | '_| / _ \  >  < </b></color>")
-print("<color=#1111FF><b>|_|  |_|  |_| \__|  |_|   \___/ /_/\_\</b></color>")
-print("                                <i>Version <b>" + microx_version + "</b></i>")
-print()
-
-if not ipAddr then exit("<B>Usage: microx (optional -v) <IP Address></B>")
-
-while 1
-	if is_lan_ip(ipAddr) then
-		displayLocalMap(ipAddr)
-		metaLibs = extractMetaLibs(ipAddr)
+localLibs = function()
+	meta = loadMetaXPloit()
+	paths = [current_path, "/lib", "/bin", "/usr/bin"]
+	results = []
+	for p in paths
+		folder = get_shell().host_computer.File(p)
+		if folder.is_folder then
+			files = folder.get_files
+			for file in files
+				lib = meta.load(file.path)
+				if typeof(lib) == "MetaLib" then
+					results.push({"file_path":p, "metaLib":lib})
+				end if
+			end for
+		end if
+	end for
+	if results == [] then
+		error("No libraries found (check read access)")
+		return
 	else
-		router = getRouter(ipAddr)
-		displayRouterMap(router)
-		metaLibs = extractMetaLibs(router)
+		return results
 	end if
+end function
 
+ipLoop = function(ipAddr)
+	globals.localCheck = false
 	while 1
-		metaLib = chooseMetaLib(metaLibs)
-		if not metaLib then exit("Thanks for using microx")
-
-		exploits = loadExploits(metaLib.metaLib)
-
-		if exploits.len == 0 then
-			error("Sorry, there are no exploits for the entry point.  Try scanning for some.")
-			print("")
-			continue
+		if is_lan_ip(ipAddr) then
+			displayLocalMap(ipAddr)
+			metaLibs = extractMetaLibs(ipAddr)
+		else
+			router = getRouter(ipAddr)
+			displayRouterMap(router)
+			metaLibs = extractMetaLibs(router)
 		end if
 
-		break
-	end while
-
-	while 1
-		// Exploit loop
-		choices = ["\n\n<b>Choose which exploit you would like to use:</b>"]
-		exploits = loadExploits(metaLib.metaLib)
-		for exploit in exploits
-			stringToAdd = "<b> " + exploit.type + "</b>"
-			if exploit.hasIndex("requirements") then
-				for requirement in exploit.requirements
-					stringToAdd = stringToAdd + "\n       " + requirement
-				end for
+		while 1
+			exitFlag = false
+			metaLib = chooseMetaLib(metaLibs)
+			if not metaLib then
+				exitFlag = true
+				break
 			end if
-			choices.push(stringToAdd)
-		end for
-		choices.push("<i>I'm scared. Get me out of here.</i>")
 
-		userChoice = get_choice(choices, choices.len-1)
-		if userChoice > exploits.len then break
-		exploit = exploits[userChoice-1]
+			exploits = loadExploits(metaLib.metaLib)
 
-		exploitObj = runExploit(exploit, metaLib.metaLib)
-
-		if typeof(exploitObj) == "shell" or typeof(exploitObj) == "ftpshell" then
-			result = get_yesno(false, typeof(exploitObj) + ": This can alert the admin.  Are you sure you want to open it now?")
-			if result then
-				get_shell.launch("/usr/bin/AdminMonitor.exe")
-				exploitObj.start_terminal
+			if exploits.len == 0 then
+				error("Sorry, there are no exploits for the entry point.  Try scanning for some.")
+				print("")
+				continue
 			end if
-		else if typeof(exploitObj) == "computer" then
-			while 1
-				choices = ["\n\n<b>You have unlocked a computer object.  You can:</b>"]
-				choices.push("Browse through the files.")
-				choices.push("Create a file on the computer.")
-				choices.push("Mess with users")
-				choices.push("Mess with processes")
+
+			break
+		end while
+
+		if exitFlag == true then
+			exitFlag = false
+			break
+		end if
+
+		while 1
+			// Exploit loop
+			choices = ["\n\n<b>Choose which exploit you would like to use:</b>"]
+			exploits = loadExploits(metaLib.metaLib)
+			for exploit in exploits
+				stringToAdd = "<b> " + exploit.type + "</b>"
+				if exploit.hasIndex("requirements") then
+					for requirement in exploit.requirements
+						stringToAdd = stringToAdd + "\n       " + requirement
+					end for
+				end if
+				choices.push(stringToAdd)
+			end for
+			choices.push("<i>I'm scared. Get me out of here.</i>")
+
+			userChoice = get_choice(choices, choices.len-1)
+			if userChoice > exploits.len then break
+			exploit = exploits[userChoice-1]
+
+			exploitObj = runExploit(exploit, metaLib.metaLib)
+
+			if typeof(exploitObj) == "shell" or typeof(exploitObj) == "ftpshell" then
+				result = get_yesno(false, typeof(exploitObj) + ": This can alert the admin.  Are you sure you want to open it now?")
+				if result then
+					//get_shell.launch("/usr/bin/AdminMonitor.exe")
+					exploitObj.start_terminal
+				end if
+			else if typeof(exploitObj) == "computer" then
+				while 1
+					choices = ["\n\n<b>You have unlocked a computer object.  You can:</b>"]
+					choices.push("Browse through the files.")
+					choices.push("Create a file on the computer.")
+					choices.push("Mess with users")
+					choices.push("Mess with processes")
+					choices.push("Scan entire machine for passwords (and crack them)")
+					choices.push("Scan entire machine for vulnerable directories and files")
+					choices.push("Nothing.")
+					choice = get_choice(choices, choices.len-1)
+					if choice == choices.len-1 then break
+					if choice == 1 then
+						browseFiles(exploitObj.File("/"), router.public_ip + "->" + exploitObj.local_ip)
+					else if choice == 2 then
+						path = user_input("Path to new file (Do not include file name) >")
+						filename = user_input("File name for new file > ")
+						x = exploitObj.touch(path, filename)
+						if x==1 then
+							print("File successfully created at " + path + "/" + filename)
+						else
+							error(x)
+						end if
+					else if choice == 3 then
+						messWithUsers(exploitObj)
+					else if choice == 4 then
+						messWithProcs(exploitObj)
+					else if choice == 5 then
+						crackAllFiles(exploitObj.File("/"), metaLib.public_ip + " --> " + metaLib.local_ip)
+						print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
+					else if choice == 6 then
+						findUnlocked(exploitObj.File("/"))
+					end if
+				end while
+			else if typeof(exploitObj) == "file" then
+				choices = ["\n\n<b>You have unlocked file access.  You can:</b>"]
+				choices.push("Browse Files")
 				choices.push("Scan entire machine for passwords (and crack them)")
 				choices.push("Scan entire machine for vulnerable directories and files")
 				choices.push("Nothing.")
 				choice = get_choice(choices, choices.len-1)
 				if choice == choices.len-1 then break
 				if choice == 1 then
-					browseFiles(exploitObj.File("/"), router.public_ip + "->" + exploitObj.local_ip)
+					browseFiles(exploitObj)
 				else if choice == 2 then
-					path = user_input("Path to new file (Do not include file name) >")
-					filename = user_input("File name for new file > ")
-					x = exploitObj.touch(path, filename)
-					if x==1 then
-						print("File successfully created at " + path + "/" + filename)
-					else
-						error(x)
-					end if
-				else if choice == 3 then
-					messWithUsers(exploitObj)
-				else if choice == 4 then
-					messWithProcs(exploitObj)
-				else if choice == 5 then
-					crackAllFiles(exploitObj.File("/"), metaLib.public_ip + " --> " + metaLib.local_ip)
+					while exploitObj.parent
+						exploitObj = exploitObj.parent
+					end while
+					crackAllFiles(exploitObj, metaLib.public_ip + " --> " + metaLib.local_ip)
 					print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
-				else if choice == 6 then
-					findUnlocked(exploitObj.File("/"))
+				else if choice == 3 then
+					while exploitObj.parent
+						exploitObj = exploitObj.parent
+					end while
+					findUnlocked(exploitObj)
 				end if
-			end while
-		else if typeof(exploitObj) == "file" then
-			choices = ["\n\n<b>You have unlocked file access.  You can:</b>"]
-			choices.push("Browse Files")
-			choices.push("Scan entire machine for passwords (and crack them)")
-			choices.push("Scan entire machine for vulnerable directories and files")
-			choices.push("Nothing.")
-			choice = get_choice(choices, choices.len-1)
-			if choice == choices.len-1 then break
-			if choice == 1 then
-				browseFiles(exploitObj)
-			else if choice == 2 then
-				while exploitObj.parent
-					exploitObj = exploitObj.parent
-				end while
-				crackAllFiles(exploitObj, metaLib.public_ip + " --> " + metaLib.local_ip)
-				print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
-			else if choice == 3 then
-				while exploitObj.parent
-					exploitObj = exploitObj.parent
-				end while
-				findUnlocked(exploitObj)
 			end if
+		end while
+		break
+	end while
+end function
+
+localLoop = function()
+	globals.localCheck = true
+	while 1
+		metaLibs = localLibs()
+
+		while 1
+			exitFlag = false
+			metaLib = chooseMetaLib(metaLibs)
+			if not metaLib then
+				exitFlag = true
+				break
+			end if
+
+			exploits = loadExploits(metaLib.metaLib)
+
+			if exploits.len == 0 then
+				error("Sorry, there are no exploits for the entry point.  Try scanning for some.")
+				print("")
+				continue
+			end if
+
+			break
+		end while
+
+		if exitFlag == true then
+			exitFlag = false
+			break
+		end if
+
+		while 1
+			// Exploit loop
+			choices = ["\n\n<b>Choose which exploit you would like to use:</b>"]
+			exploits = loadExploits(metaLib.metaLib)
+			for exploit in exploits
+				stringToAdd = "<b> " + exploit.type + "</b>"
+				if exploit.hasIndex("requirements") then
+					for requirement in exploit.requirements
+						stringToAdd = stringToAdd + "\n       " + requirement
+					end for
+				end if
+				choices.push(stringToAdd)
+			end for
+			choices.push("<i>I'm scared. Get me out of here.</i>")
+
+			userChoice = get_choice(choices, choices.len-1)
+			if userChoice > exploits.len then break
+			exploit = exploits[userChoice-1]
+
+			exploitObj = runExploit(exploit, metaLib.metaLib)
+
+			if typeof(exploitObj) == "shell" or typeof(exploitObj) == "ftpshell" then
+				result = get_yesno(false, typeof(exploitObj) + ": This can alert the admin.  Are you sure you want to open it now?")
+				if result then
+					//get_shell.launch("/usr/bin/AdminMonitor.exe")
+					exploitObj.start_terminal
+				end if
+			else if typeof(exploitObj) == "computer" then
+				while 1
+					choices = ["\n\n<b>You have unlocked a computer object.  You can:</b>"]
+					choices.push("Browse through the files.")
+					choices.push("Create a file on the computer.")
+					choices.push("Mess with users")
+					choices.push("Mess with processes")
+					choices.push("Scan entire machine for passwords (and crack them)")
+					choices.push("Scan entire machine for vulnerable directories and files")
+					choices.push("Nothing.")
+					choice = get_choice(choices, choices.len-1)
+					if choice == choices.len-1 then break
+					if choice == 1 then
+						browseFiles(exploitObj.File("/"), get_shell().host_computer.public_ip + " --> " + get_shell().host_computer.local_ip)
+					else if choice == 2 then
+						path = user_input("Path to new file (Do not include file name) >")
+						filename = user_input("File name for new file > ")
+						x = exploitObj.touch(path, filename)
+						if x==1 then
+							print("File successfully created at " + path + "/" + filename)
+						else
+							error(x)
+						end if
+					else if choice == 3 then
+						messWithUsers(exploitObj)
+					else if choice == 4 then
+						messWithProcs(exploitObj)
+					else if choice == 5 then
+						crackAllFiles(exploitObj.File("/"), get_shell().host_computer.public_ip + " --> " + get_shell().host_computer.local_ip)
+						print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
+					else if choice == 6 then
+						findUnlocked(exploitObj.File("/"))
+					end if
+				end while
+			else if typeof(exploitObj) == "file" then
+				choices = ["\n\n<b>You have unlocked file access.  You can:</b>"]
+				choices.push("Browse Files")
+				choices.push("Scan entire machine for passwords (and crack them)")
+				choices.push("Scan entire machine for vulnerable directories and files")
+				choices.push("Nothing.")
+				choice = get_choice(choices, choices.len-1)
+				if choice == choices.len-1 then break
+				if choice == 1 then
+					browseFiles(exploitObj)
+				else if choice == 2 then
+					while exploitObj.parent
+						exploitObj = exploitObj.parent
+					end while
+					crackAllFiles(exploitObj, get_shell().host_computer.public_ip + " --> " + get_shell().host_computer.local_ip)
+					print("Cracked passwords have been saved in <b><i>" + home_dir + "/crackedPasswords.txt</b></i>")
+				else if choice == 3 then
+					while exploitObj.parent
+						exploitObj = exploitObj.parent
+					end while
+					findUnlocked(exploitObj)
+				end if
+			end if
+		end while
+		break
+	end while
+	globals.localCheck = false
+end function
+
+localTools = function()
+	print("<b><--- Local Tools ---></b>")
+	while 1
+		choices = ["Choose an option:"]
+		choices.push("Scan for vulnerable directories and files")
+		choices.push("Find version of all local libraries")
+		choices.push("Scan and exploit local libraries")
+		choices.push("Back.")
+		choice = get_choice(choices, choices.len-1)
+		if choice == choices.len-1 then break
+		if choice == 1 then
+			findUnlocked(get_shell().host_computer.File("/"))
+		else if choice == 2 then
+			libCheck()
+		else if choice == 3 then
+			localLoop()
 		end if
 	end while
-end while
+	return
+end function
+
+wireShark = function()
+	meta = loadMetaXPloit()
+	loop = get_yesno(false, "Loop sniffer?")
+	if loop == true then
+		while 1
+			print("Ctrl+C to exit loop")
+			print("Waiting for packets...")
+			sniff = meta.sniffer(1)
+			print(sniff)
+			print("Source code saved to " + current_path)
+		end while
+	else
+		print("Waiting for packets...")
+		sniff = meta.sniffer(1)
+		print(sniff)
+		print("Source code saved to " + current_path)
+	end if
+end function
+
+ritz = function()
+	choices = ["\n<b>Choose an option:</b>"]
+	choices.push("Crack a file")
+	choices.push("Crack a hash")
+	choices.push("Back.")
+	choice = get_choice(choices, choices.len-1)
+	if choice == choices.len-1 then break
+	if choice == 1 then
+		filePtr = user_input("Enter file path: ")
+		file = get_shell().host_computer.File(filePtr)
+		if file then
+			if file.has_permission("r") and not file.is_binary then
+				info("Cracking file: " + file.path)
+				crackLocalFile(file)
+			else
+				error("File is not readable")
+			end if
+		else
+			error("Unable to find file at " + filePtr)
+		end if
+	else if choice == 2 then
+		cipher = user_input("Enter hash (32 characters): ")
+		quickDecipher(cipher)
+	end if
+end function
+
+setupServer = function()
+	key = ""
+	for i in range(1, 32)
+		num = floor(rnd * 200)
+		num_ok = 0
+		while num_ok != 1
+			if num < 48 then
+				num = num + 10
+			else if num > 122 then
+				num = num - 10
+			else
+				num_ok = 1
+			end if
+		end while
+		key = key + char(num)
+	end for
+
+	encode = "encode_version = ""0.2""\n\n// .get_content no longer allowed in Encode/Decode\n// key = get_shell.host_computer.File(""/server/.ssh/id_key"").get_content //can be located anywhere, need to be a 32 character key\nkey = """+key+""" // change this unless you are a skid\n\npad32 = function(text)\n	pad = char(32)\n	i = 32 - text.len\n	return(text + pad*i)\nend function\n\nfill = function(text, block)\n	a = []\n	sStart = ((block-1)*32)\n	sEnd = block*32\n	text = text[sStart:sEnd]\n	if text.len < 32 then\n		text = pad32(text)\n	end if\n	for i in text.indexes\n		a.push(text[i].code)\n	end for\n	return a\nend function\n\nhex = function(int)\n  lookup = [""0"",""1"",""2"",""3"",""4"",""5"",""6"",""7"",""8"",""9"",""a"",""b"",""c"",""d"",""e"",""f""]\n  x = int/16\n  y = int%16\n  return(lookup[x]+lookup[y])\nend function\n\nEncode = function(text)\n	numBlocks = ceil(text.len/32)\n\n	blocks = []\n	for i in range(1, numBlocks)\n		blocks.push(fill(text, i))\n	end for\n\n	keyblock = []\n	keyblock = fill(key, 1)\n\n	result = []\n	for i in blocks.indexes\n		for j in keyblock.indexes\n			result.push(bitwise(""^"", blocks[i][j], keyblock[j]))\n		end for\n	end for\n\n  ciphertext = """"\n  for i in result.indexes\n    ciphertext = ciphertext + hex(result[i])\n  end for\n\n	return ciphertext\n\nend function"
+
+	decode = "decode_version = ""0.2""\n\n// .get_content no longer allowed in Encode/Decode\n// key = get_shell.host_computer.File(""/server/.ssh/id_key"").get_content //can be located anywhere, need to be a 32 character key\nkey = """+key+""" // change this unless you are a skid\n\nfill = function(text, block)\n	a = []\n	sStart = ((block-1)*32)\n	sEnd = block*32\n	text = text[sStart:sEnd]\n	if text.len < 32 then\n		text = pad32(text)\n	end if\n	for i in text.indexes\n		a.push(text[i].code)\n	end for\n	return a\nend function\n\nhSplit = function(text, block)\n	a = []\n	sStart = ((block-1)*64)\n	sEnd = block*64\n	text = text[sStart:sEnd]\n	for i in text.indexes\n		if i%2 == 0 then a.push(text[i]+text[i+1])\n	end for\n	for i in a.indexes\n		a[i] = hex_to_int(a[i])\n	end for\n	return a\nend function\n\nhex_to_int = function(hex)\n	lookup = {""0"":0,""1"":1,""2"":2,""3"":3,""4"":4,""5"":5,""6"":6,""7"":7,""8"":8,""9"":9,""a"":10,""b"":11,""c"":12,""d"":13,""e"":14,""f"":15}\n	x = hex[0]\n	y = hex[1]\n	result = (lookup[x]*16)+lookup[y]\n	return(result)\nend function\n\nDecode = function(cipher)\n	if cipher.len%64 != 0 then exit(""Error: cipher length incorrect"")\n	numBlocks = cipher.len/64\n\n	blocks = []\n	for i in range(1, numBlocks)\n		blocks.push(hSplit(cipher, i))\n	end for\n\n	keyblock = []\n	keyblock = fill(key, 1)\n\n	result = []\n	for i in blocks.indexes\n		for j in keyblock.indexes\n			result.push(bitwise(""^"", blocks[i][j], keyblock[j]))\n		end for\n	end for\n\n	plaintext = """"\n	for i in result.indexes\n		plaintext = plaintext + char(result[i])\n	end for\n	return plaintext.trim\n\nend function"
+
+	chall = "//chmod all Files\na = get_shell().host_computer.File(""/"")\na.chmod(""o-rwx"", 1)\na.chmod(""u-rwx"", 1)\na.chmod(""g-rwx"", 1)\n\nexit(""File Permissions Removed"")"
+
+	shell = get_shell()
+	host = shell.host_computer
+
+	host.touch(home_dir, "encode.src")
+	host.touch(home_dir, "decode.src")
+	host.touch(home_dir, "chall.src")
+
+	host.File(home_dir+"/encode.src").set_content(encode)
+	host.File(home_dir+"/decode.src").set_content(decode)
+	host.File(home_dir+"/chall.src").set_content(chall)
+
+	shell.build(home_dir+"/decode.src", home_dir)
+	file = host.File(home_dir+"/decode.src")
+	file.delete
+	file = host.File(home_dir+"/decode")
+	file.copy("/server", "decode.bin")
+	file.delete
+
+	file = host.File(home_dir+"/encode.src")
+	file.copy("/server", "encode.src")
+	file.delete
+
+	file = host.File("/server/conf/sshd.conf")
+	file.set_content("{\n  ""encryption_enabled"": true,\n  ""path_enc"": ""/server/encode.src"",\n  ""path_dec"": ""/server/decode.bin""\n}")
+
+	shell.build(home_dir+"/chall.src", "/bin")
+	file = host.File(home_dir+"/chall.src")
+	file.delete
+
+	a = user_input("> chall? ")
+	if a == "y" then shell.launch("/bin/chall")
+end function
+
+printTitle = function()
+	print("<color=#FF1111>  *      `           `             ) </color>")
+	print("<color=#DD4433> (  `       `               `     ( /( </color>")
+	print("<color=#BB8855> )\))(     (       `  (   `       )\())</color>")
+	print("<color=#99CC77>((_)()\    )\    (    )(     (   ((_)\ </color>")
+	print("<color=#77EE99>(_()((_)  ((_)   )\   (()\    )\  __((_)</color>")
+	print("<color=#5588BB><b>|  \/  |</b>  (_)  ((_)   ((_)  ((_)  <b>\ \/ /</b></color>")
+	print("<color=#3344DD><b>| |\/| |  | | / _|  | '_| / _ \  >  < </b></color>")
+	print("<color=#1111FF><b>|_|  |_|  |_| \__|  |_|   \___/ /_/\_\</b></color>")
+	print("                                <i>Version <b>" + microx_version + "</b></i>")
+	print()
+end function
+
+chooseTool = function()
+	while 1
+		choices = ["\n<b><----- Main Menu ----->\nChoose an option:</b>"]
+		choices.push("Scan an IP")
+		choices.push("Scan the system")
+		choices.push("Sniff the network")
+		choices.push("Crack passwords")
+		choices.push("Setup new server")
+		choices.push("Exit")
+		choice = get_choice(choices, choices.len-1)
+		if choice == choices.len-1 then
+			exit("<b>Thank you for using Microx!</b>\n")
+		else if choice == 1 then
+			ipAddr = user_input("Enter an IP: ")
+			if is_valid_ip(nslookup(ipAddr)) then
+				ipLoop(nslookup(ipAddr))
+			else if is_valid_ip(ipAddr) then
+				ipLoop(ipAddr)
+			else
+				error("Invalid IP")
+			end if
+			continue
+		else if choice == 2 then
+			localTools()
+			continue
+		else if choice == 3 then
+			wireShark()
+			continue
+		else if choice == 4 then
+			ritz()
+			continue
+		else if choice == 5 then
+			setupServer()
+			continue
+		end if
+	end while
+end function
+
+checkParams = function()
+	for param in params
+		if param.lower == "-h" or param.lower == "-help" or param.lower == "--help" then
+			printTitle()
+			exit("<B>Usage: microx [Optional: <-v(erbose)> <ip_addr OR file_to_crack OR hash_to_cracks>]</B>")
+		else if is_valid_ip(nslookup(param)) then
+			ipLoop(nslookup(param))
+		else if is_valid_ip(param) then
+			ipLoop(param)
+		else if param.len == 32 then
+			quickDecipher(param)
+			exit()
+		else if param.lower != "-v" then
+			file = get_shell().host_computer.File(param)
+			if file then
+				if file.has_permission("r") and not file.is_binary then
+					info("Cracking file: " + file.path)
+					crackLocalFile(file)
+				else
+					error("File is not readable")
+				end if
+			else
+				error("Unable to find file at: " + param)
+			end if
+		else
+			continue
+		end if
+	end for
+	printTitle()
+	chooseTool()
+end function
+
+// check parameters
+info("Program Start: Checking parameters")
+localCheck = false
+checkParams()

@@ -41,6 +41,7 @@ hex_to_int = function(hex)
 end function
 
 Decode = function(cipher)
+	if cipher == "" then return 0
 	if cipher.len%64 != 0 then exit("Error: cipher length incorrect")
 	numBlocks = cipher.len/64
 

@@ -32,6 +32,8 @@ hex = function(int)
 end function
 
 Encode = function(text)
+	if text == "" then return 0
+
 	numBlocks = ceil(text.len/32)
 
 	blocks = []
