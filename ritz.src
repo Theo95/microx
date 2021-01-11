@@ -43,7 +43,8 @@ crackPasswordFile = function(filePtr)
 		line2 = split(line[1], " ")
 		if line2[0].len == 32 then
 			print("Cracking MD5 hash for user: <b><i>" + line[0] + "</b></i> in file: <b><i>" + filePtr.path + "</b></i>")
-			pw = crypto.decipher(line[1])
+			pw = crypto.decipher(line2[0])
+			print(pw)
 			get_shell().host_computer.touch(home_dir, "crackedPasswords.txt")
 			f = get_shell().host_computer.File(home_dir+"/crackedPasswords.txt")
 			f.set_content(f.get_content + "\n" + padSpaces(line[0]+"@"+pw, 30) + " " + line2[1] + ": " + line[2])
@@ -51,4 +52,4 @@ crackPasswordFile = function(filePtr)
 	end for
 end function
 
-crackPasswordFile(host_computer.File(params[0]))
+crackPasswordFile(get_shell().host_computer.File(params[0]))
