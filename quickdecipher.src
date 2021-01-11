@@ -1,0 +1,14 @@
+loadLibrary = function(libFileName, search)
+	paths=[""]
+	if search then paths = [current_path, "/lib", "/bin", "/usr/bin"]
+	for p in paths
+		lib = include_lib(p + "/" + libFileName)
+		if lib then return lib
+	end for
+	error("Could not find requested library: " + libFileName)
+	return false
+end function
+
+crypto = loadLibrary("crypto.so", true)
+pass = crypto.decipher(params[0])
+print(pass)

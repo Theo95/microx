@@ -25,50 +25,62 @@ libcheck = "//LibraryVersionChecker\nlibCheck = ""0.0.1""\n\nprint(""===========
 shell = get_shell()
 host = shell.host_computer
 
-host.create_folder(home_dir, "Scripts")
-host.create_folder(home_dir, "Binaries")
-host.create_folder(home_dir, "Installers")
-host.create_folder(home_dir, "Libararies")
+extras = function()
+  host.touch(home_dir, "microx.src")
+  host.touch(home_dir, "scrape.src")
+  host.touch(home_dir, "ritz.src")
 
-scripts = home_dir+"/Scripts"
-home_bins = home_dir+"/Binaries"
+  host.File(home_dir+"/microx.src").set_content(microx)
+  host.File(home_dir+"/scrape.src").set_content(scrape)
+  host.File(home_dir+"/ritz.src").set_content(ritz)
 
-host.touch(scripts, "microx.src")
-host.touch(scripts, "encode.src")
-host.touch(scripts, "decode.src")
-host.touch(scripts, "scrape.src")
-host.touch(scripts, "ritz.src")
-host.touch(scripts, "chall.src")
-host.touch(scripts, "libcheck.src")
+  shell.build(home_dir+"/microx.src", "/bin")
+  file = host.File(home_dir+"/microx.src")
+  file.delete
 
-host.File(scripts+"/microx.src").set_content(microx)
-host.File(scripts+"/encode.src").set_content(encode)
-host.File(scripts+"/decode.src").set_content(decode)
-host.File(scripts+"/scrape.src").set_content(scrape)
-host.File(scripts+"/ritz.src").set_content(ritz)
-host.File(scripts+"/chall.src").set_content(chall)
-host.File(scripts+"/libcheck.src").set_content(libcheck)
+  shell.build(home_dir+"/scrape.src", "/bin")
+  file = host.File(home_dir+"/scrape.src")
+  file.delete
 
-shell.build(scripts+"/microx.src", home_bins)
-file = host.File(home_bins+"/microx")
-file.copy("/bin", "microx")
+  shell.build(home_dir+"/ritz.src", "/bin")
+  file = host.File(home_dir+"/ritz.src")
+  file.delete
+end function
 
-shell.build(scripts+"/scrape.src", home_bins)
-file = host.File(home_bins+"/scrape")
-file.copy("/bin", "srcape")
+host.touch(home_dir, "encode.src")
+host.touch(home_dir, "decode.src")
+host.touch(home_dir, "chall.src")
+host.touch(home_dir, "libcheck.src")
 
-shell.build(scripts+"/ritz.src", home_bins)
-file = host.File(home_bins+"/ritz")
-file.copy("/bin", "ritz")
+host.File(home_dir+"/encode.src").set_content(encode)
+host.File(home_dir+"/decode.src").set_content(decode)
+host.File(home_dir+"/chall.src").set_content(chall)
+host.File(home_dir+"/libcheck.src").set_content(libcheck)
 
-shell.build(scripts+"/libcheck.src", home_bins)
-file = host.File(home_bins+"/libcheck")
-file.copy("/bin", "libcheck")
+shell.build(home_dir+"/libcheck.src", "/bin")
+file = host.File(home_dir+"/libcheck.src")
+file.delete
 
-shell.build(scripts+"/decode.src", home_bins)
-file = host.File(home_bins+"/decode")
-file.rename("decode.bin")
+shell.build(home_dir+"/decode.src", home_dir)
+file = host.File(home_dir+"/decode.src")
+file.delete
+file = host.File(home_dir+"/decode")
+file.copy("/server", "decode.bin")
+file.delete
 
-shell.build(scripts+"/chall.src", home_bins)
+file = host.File(home_dir+"/encode.src")
+file.copy("/server", "encode.src")
+file.delete
 
-shell.launch("/bin/sudo", "chmod -R o-rwx /")
+file = host.File("/server/conf/sshd.conf")
+file.set_content("{\n  ""encryption_enabled"": true,\n  ""path_enc"": ""/server/encode.src"",\n  ""path_dec"": ""/server/decode.bin""\n}")
+
+shell.build(home_dir+"/chall.src", "/bin")
+file = host.File(home_dir+"/chall.src")
+file.delete
+
+a = user_input("> add extras? ")
+if a == "y" then extras()
+
+a = user_input("> chall? ")
+if a == "y" then shell.launch("/bin/chall")
