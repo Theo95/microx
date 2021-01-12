@@ -1,8 +1,4 @@
-decode_version = "0.2"
-
-// .get_content no longer allowed in Encode/Decode
-// key = get_shell.host_computer.File("/server/.ssh/id_key").get_content //can be located anywhere, need to be a 32 character key
-key = "IAbBpjLQq8UZTY6xAHdPE4YLWeI3wZqL" // change this unless you are a skid
+key = "IAbBpjLQq8UZTY6xAHdPE4YLWeI3wZqL"
 
 fill = function(text, block)
 	a = []
