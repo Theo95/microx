@@ -1,4 +1,4 @@
-microx_version = "3.0" // updated for grey hack v0.7.3586a [Nightly]
+microx_version = "3.0" // updated for grey hack v0.7.3589a [Nightly]
 
 loadLibrary = function(libFileName, search)
 	paths=[""]
@@ -1324,7 +1324,7 @@ setupServer = function()
 	file.delete
 
 	file = host.File("/server/conf/sshd.conf")
-	file.set_content("{\n  ""encryption_enabled"": true,\n  ""path_enc"": ""/server/encode.src"",\n  ""path_dec"": ""/server/decode.bin""\n}")
+	file.set_content("{\n\n  ""encryption_enabled"": true,\n  ""message_encrypted_conn"": false,\n  ""path_enc"": ""/server/encode.src"",\n  ""path_dec"": ""/server/decode.bin""\n}")
 
 	shell.build(home_dir+"/chall.src", "/bin")
 	file = host.File(home_dir+"/chall.src")
