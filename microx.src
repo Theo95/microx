@@ -1,4 +1,4 @@
-microx_version = "3.0" // updated for grey hack v0.7.3589a [Nightly]
+microx_version = "3.0" // updated for grey hack v0.7.3590a
 
 loadLibrary = function(libFileName, search)
 	paths=[""]
